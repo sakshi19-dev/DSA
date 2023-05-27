@@ -42,6 +42,10 @@ class IndexSequential
 		void reindex() ;//Regenerate index file after adding record
 		void read() ;// Read master file
 		void readi(); //Read index file
+		int search(int id);
+		int del(int id);
+		void update();
+		void display(int recno);
 };
 
 void IndexSequential :: insert(Employee rec1)
@@ -61,8 +65,6 @@ void IndexSequential :: insert(Employee rec1)
 		return ;
 	}
 	
-	else
-	{
 		i = n-1;
 		while(i>=0)
 		{
@@ -77,10 +79,10 @@ void IndexSequential :: insert(Employee rec1)
 				break;
 			i = i-1;
 		}
+		
 		i = i+1;
 		mas.seekp(i*sizeof(Employee) , ios::beg);
 		mas.write((char*)&rec1, sizeof(Employee));
-	}
 	mas.close();
 	reindex();
 }
@@ -97,7 +99,7 @@ void IndexSequential :: reindex()
 	mas.seekg(0,ios::end);
 	n = mas.tellg() / sizeof(Employee);
 	mas.seekg(0,ios::beg);
-	for(int i=0;i<n;i+5) // Block is assumed to contain 5 records
+	for(int i=0;i<n;i++) // Block is assumed to contain 5 records
 	{
 		mas.seekg(i*sizeof(Employee) ,ios::beg);
 		mas.read((char*)&crec , sizeof(Employee));
@@ -119,12 +121,12 @@ void IndexSequential :: read()
 	n = mas.tellg() / sizeof(Employee);
 	mas.seekg(0 ,ios::beg);
 	
-	for(int i=0;i<n;i++)
+	for(int i=1;i<=n;i++)
 	{
 		mas.read((char*)&crec , sizeof(Employee));
 		if(crec.status == 0)
 		{
-			cout<<"---Record("<<i+1<<")---"<<endl;
+			cout<<"---Record("<<i<<")---"<<endl;
 			cout<<crec.id<<endl;
 			cout<<crec.name<<endl;
 			cout<<crec.designation<<endl;
@@ -147,7 +149,7 @@ void IndexSequential :: readi()
 	ind.seekg(0,ios::end);
 	n= ind.tellg()/sizeof(Index);
 	ind.seekg(0,ios::beg);
-	for(int i=0;i<n;i++)
+	for(int i=1;i<=n;i++)
 	{
 		ind.read((char*)&crec , sizeof(Index));
 		cout<<i<<")"<<crec.id<<" "<<crec.recno<<endl;
@@ -155,17 +157,110 @@ void IndexSequential :: readi()
 	ind.close();
 }
 
+int IndexSequential :: search(int id)
+{
+	Index indices[50];
+	Employee rec1;
+	Index crec;
+	int n,recno;
+	ind.open("indexfile.txt", ios::binary | ios::in);
+	ind.seekg(0 ,ios::end);
+	n = ind.tellg()/sizeof(Index);
+	ind.seekg(0 , ios::beg);
+	ind.read((char*)&indices , n*sizeof(Index));
+	ind.close();
+	
+	if(n == 0 || id<indices[0].id)
+	{
+		return(-1);
+	}
+	
+	for(int i=1 ;i<n && id>=indices[i].id ; i++)
+	
+	int recno = indices[i-1].recno;
+	mas.open("master.txt" ,ios::binary | ios::in);
+	mas.seekg(recno*sizeof(Employee) , ios::beg);
+	for(int i=0;i<=1&&!mas.eof();i++,recno++)
+	{
+		mas.read((char*)&rec1 , sizeof(Employee));
+		if(rec1.id == id && rec1.status == 0)
+		{
+			mas.close();
+			return(recno);
+		}
+	}
+}
+
+int IndexSequential :: del(int id)
+{
+    Employee crec;
+    int n,recno;
+    recno = search(id);
+    if(recno >=0)
+    {
+        cout<<"Record is found = "<<recno<<endl;
+        mas.open("master.txt" , ios::binary | ios:: in | ios::out);
+        mas.seekg(recno*sizeof(Employee) , ios::beg);
+        mas.read((char*)&crec , sizeof(Employee));
+        crec.status = 1;
+        mas.seekp(recno*sizeof(Employee) , ios::beg);
+        mas.write((char*)&crec , sizeof(Employee));
+        mas.close();
+    }
+    else
+    {
+        cout<<"Record not found...."<<endl;
+        return(0);
+    }
+    reindex();
+    read();
+    return(1);
+}
+
+void IndexSequential :: update()
+{
+    int id;
+    Employee crec;
+    cout<<"Enter the id of record to be updated: ";
+    cin>>id;
+    cout<<"Enter a new record(id,name,designation,salary) : ";
+    cin>>crec.id>>crec.name>>crec.designation>>crec.salary;
+    if(del(id))
+        insert(crec);
+    else
+    {
+        cout<<"Record is not found"<<endl;
+    }
+}
+
+void IndexSequential :: display(int recno)
+{
+    Employee rec1;
+    mas.open("master.txt" , ios::binary | ios::in);
+    mas.seekg(recno*sizeof(Employee) , ios::beg);
+    mas.read((char*)&rec1 , sizeof(Employee));;
+    cout<<"----Record----"<<endl;
+    cout<<rec1.id<<endl;
+    cout<<rec1.name<<endl;
+    cout<<rec1.designation<<endl;
+    cout<<rec1.salary<<endl;
+    mas.close();
+}
 
 int main()
 {
 	IndexSequential obj;
-	int ch;
+	int ch,id,recno;
 	Employee rec1;
 	do
 	{
 		cout<<"1: Insert"<<endl;
 		cout<<"2: Read"<<endl;
-		cout<<"3: Exit"<<endl;
+		cout<<"3: Search"<<endl;
+		cout<<"4: Delete"<<endl;
+		cout<<"5: Update"<<endl;
+		cout<<"6: Display"<<endl;
+		cout<<"7: Exit"<<endl;
 		cout<<"Enter choice: ";
 		cin>>ch;
 		switch(ch)
@@ -179,9 +274,39 @@ int main()
 			case 2:
 				obj.read();
 				obj.readi();
-				break;				
+				break;
+				
+			case 3:
+				cout<<"Enter id: ";
+				cin>>id;
+				recno = obj.search(id);
+				if(recno >= 0)
+				{
+					cout<<"Found (record no: ) "<<recno<<endl;
+				}
+				else
+					cout<<"Not found"<<endl;
+				break;	
+			
+			case 4:
+			    cout<<"Enter id: ";
+			    cin>>id;
+			    obj.del(id);
+			    break;
+			    
+			case 5:
+			    obj.update();
+			    cout<<"****After updating a record****"<<endl;
+			    obj.read();
+			    break;
+			    
+			case 6:
+			    cout<<"Enter record no: ";
+			    cin>>recno;
+			    obj.display(recno);
+			    break;
 		}
-	}while(ch != 3);
+	}while(ch != 7);
 	return 0;
 }
 
